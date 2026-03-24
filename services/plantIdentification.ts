@@ -49,11 +49,28 @@ Rules:
 Return ONLY the JSON object. No markdown fences, no explanation.`;
 }
 
-function getMediaType(uri: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' {
+function getMediaType(base64Image: string, uri: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' {
+  // Detect from base64 magic bytes (first few bytes of the image)
+  const header = base64Image.slice(0, 16);
+  // Decode first 6 bytes to check magic numbers
+  const bytes = atob(header.padEnd(Math.ceil(header.length / 4) * 4, '='));
+  const b0 = bytes.charCodeAt(0);
+  const b1 = bytes.charCodeAt(1);
+  const b2 = bytes.charCodeAt(2);
+  const b3 = bytes.charCodeAt(3);
+
+  if (b0 === 0xff && b1 === 0xd8 && b2 === 0xff) return 'image/jpeg';
+  if (b0 === 0x89 && b1 === 0x50 && b2 === 0x4e && b3 === 0x47) return 'image/png';
+  if (b0 === 0x47 && b1 === 0x49 && b2 === 0x46) return 'image/gif';
+  if (b0 === 0x52 && b1 === 0x49 && b2 === 0x46 && b3 === 0x46) return 'image/webp';
+
+  // Fall back to URI extension
   const lower = uri.toLowerCase();
   if (lower.includes('.png')) return 'image/png';
   if (lower.includes('.gif')) return 'image/gif';
   if (lower.includes('.webp')) return 'image/webp';
+  if (lower.includes('.jpg') || lower.includes('.jpeg')) return 'image/jpeg';
+
   return 'image/jpeg';
 }
 
@@ -76,7 +93,7 @@ export async function identifyPlant(
     );
   }
 
-  const mediaType = getMediaType(imageUri);
+  const mediaType = getMediaType(base64Image, imageUri);
   console.log('[SpinifexID] media type:', mediaType);
 
   const userPrompt = buildUserPrompt(location);

@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Spinifex ID",
+    "slug": "spinifex-id",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "spinifex-id",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.spinifexid.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Spinifex ID uses your camera to photograph plants for identification.",
+        "NSPhotoLibraryUsageDescription": "Spinifex ID accesses your photo library to identify plants from existing photos."
+      }
+    },
+    "android": {
+      "package": "com.spinifexid.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Spinifex ID accesses your photos to identify plants.",
+          "cameraPermission": "Spinifex ID uses the camera to photograph plants for identification."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -66,7 +66,7 @@ export default function HomeScreen() {
 
         {/* Footer note */}
         <Text style={styles.footerNote}>
-          Powered by Claude AI · Focused on Australian flora
+          Powered by Claude AI
         </Text>
       </ScrollView>
     </SafeAreaView>

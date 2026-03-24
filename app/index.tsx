@@ -22,20 +22,21 @@ export default function HomeScreen() {
             <Text style={styles.logoEmoji}>🌿</Text>
           </View>
           <Text style={styles.appTitle}>Spinifex ID</Text>
-          <Text style={styles.appSubtitle}>Australian Plant Identifier</Text>
+          <Text style={styles.appSubtitle}>Spinifex Species Identifier</Text>
         </View>
 
         {/* Hero card */}
         <View style={styles.heroCard}>
-          <Text style={styles.heroHeading}>Is it spinifex?</Text>
+          <Text style={styles.heroHeading}>Identify your spinifex</Text>
           <Text style={styles.heroDescription}>
-            Photograph any plant and let AI determine whether it is spinifex —
-            one of Australia's most iconic and ecologically significant grasses.
+            Take or upload a photo of a spinifex plant and this app will identify
+            which of the 60+ Australian spinifex species it is, based on visual
+            features and your location.
           </Text>
           <View style={styles.heroDivider} />
           <Text style={styles.heroDetails}>
-            Get instant identification with confidence rating, key features,
-            habitat information, and land management notes.
+            Get a ranked list of likely species with confidence rating, key
+            identifying features, location context, and land management notes.
           </Text>
         </View>
 

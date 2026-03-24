@@ -1,11 +1,17 @@
 export type Confidence = 'high' | 'medium' | 'low';
 
-export interface PlantAnalysisResult {
-  isSpinifex: boolean;
-  speciesName: string;
+export interface SpeciesCandidate {
+  scientificName: string;
+  commonName: string;
   confidence: Confidence;
   identifyingFeatures: string[];
+  locationContext: string;
+  furtherPhotoSuggestion: string | null;
+}
+
+export interface PlantAnalysisResult {
+  isSpinifex: boolean;
+  candidates: SpeciesCandidate[];
   habitat: string;
   landManagementNotes: string;
-  alternativeSuggestion: string | null;
 }

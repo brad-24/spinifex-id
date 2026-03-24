@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Colors } from '../constants/colors';
 import { clearAnalysisResult, getAnalysisResult } from '../store/resultStore';
-import { Confidence, PlantAnalysisResult } from '../types/plant';
+import { Confidence, PlantAnalysisResult, SpeciesCandidate } from '../types/plant';
 
 const CONFIDENCE_LABELS: Record<Confidence, string> = {
   high: 'High Confidence',
@@ -32,9 +32,8 @@ const CONFIDENCE_ICONS: Record<Confidence, string> = {
 };
 
 function ConfidenceBadge({ confidence }: { confidence: Confidence }) {
-  const bg = CONFIDENCE_COLORS[confidence];
   return (
-    <View style={[styles.badge, { backgroundColor: bg }]}>
+    <View style={[styles.badge, { backgroundColor: CONFIDENCE_COLORS[confidence] }]}>
       <Text style={styles.badgeIcon}>{CONFIDENCE_ICONS[confidence]}</Text>
       <Text style={styles.badgeText}>{CONFIDENCE_LABELS[confidence]}</Text>
     </View>
@@ -61,16 +60,117 @@ function SectionCard({
   );
 }
 
+function TopMatchCard({
+  candidate,
+  isSpinifex,
+}: {
+  candidate: SpeciesCandidate;
+  isSpinifex: boolean;
+}) {
+  return (
+    <View style={[styles.topMatchCard, isSpinifex ? styles.heroCardSpinifex : styles.heroCardNonSpinifex]}>
+      <View style={styles.verdictRow}>
+        <Text style={styles.verdictIcon}>{isSpinifex ? '🌿' : '❌'}</Text>
+        <Text style={[styles.verdictLabel, isSpinifex ? styles.verdictLabelSpinifex : styles.verdictLabelNonSpinifex]}>
+          {isSpinifex ? 'Spinifex Identified' : 'Not Spinifex'}
+        </Text>
+        <View style={styles.rankBadge}>
+          <Text style={styles.rankBadgeText}>#1 Match</Text>
+        </View>
+      </View>
+
+      <Text style={styles.speciesScientific}>{candidate.scientificName}</Text>
+      <Text style={styles.speciesCommon}>{candidate.commonName}</Text>
+
+      <View style={styles.confidenceRow}>
+        <ConfidenceBadge confidence={candidate.confidence} />
+      </View>
+
+      {candidate.identifyingFeatures.length > 0 && (
+        <View style={styles.featuresBlock}>
+          <Text style={styles.featuresLabel}>Key features in this photo</Text>
+          {candidate.identifyingFeatures.map((feature, i) => (
+            <View key={i} style={styles.featureRow}>
+              <View style={styles.featureBullet} />
+              <Text style={styles.featureText}>{feature}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {candidate.locationContext ? (
+        <View style={styles.locationContextBlock}>
+          <Text style={styles.locationContextIcon}>📍</Text>
+          <Text style={styles.locationContextText}>{candidate.locationContext}</Text>
+        </View>
+      ) : null}
+
+      {candidate.furtherPhotoSuggestion ? (
+        <View style={styles.photoSuggestionBlock}>
+          <Text style={styles.photoSuggestionIcon}>📸</Text>
+          <Text style={styles.photoSuggestionText}>{candidate.furtherPhotoSuggestion}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function AlternativeCard({
+  candidate,
+  rank,
+}: {
+  candidate: SpeciesCandidate;
+  rank: number;
+}) {
+  return (
+    <View style={styles.alternativeCard}>
+      <View style={styles.altCardHeader}>
+        <View style={styles.altRankBadge}>
+          <Text style={styles.altRankText}>#{rank}</Text>
+        </View>
+        <View style={styles.altNameGroup}>
+          <Text style={styles.altScientific}>{candidate.scientificName}</Text>
+          <Text style={styles.altCommon}>{candidate.commonName}</Text>
+        </View>
+        <ConfidenceBadge confidence={candidate.confidence} />
+      </View>
+
+      {candidate.identifyingFeatures.length > 0 && (
+        <View style={styles.altFeaturesBlock}>
+          {candidate.identifyingFeatures.map((feature, i) => (
+            <View key={i} style={styles.featureRow}>
+              <View style={[styles.featureBullet, styles.featureBulletAlt]} />
+              <Text style={styles.featureText}>{feature}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {candidate.locationContext ? (
+        <View style={styles.locationContextBlock}>
+          <Text style={styles.locationContextIcon}>📍</Text>
+          <Text style={styles.locationContextText}>{candidate.locationContext}</Text>
+        </View>
+      ) : null}
+
+      {candidate.furtherPhotoSuggestion ? (
+        <View style={styles.photoSuggestionBlock}>
+          <Text style={styles.photoSuggestionIcon}>📸</Text>
+          <Text style={styles.photoSuggestionText}>{candidate.furtherPhotoSuggestion}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export default function ResultsScreen() {
   const [result, setResult] = useState<PlantAnalysisResult | null>(null);
   const [imageUri, setImageUri] = useState<string | null>(null);
 
-  // Load result each time the screen is focused (handles navigating back and forth)
   useFocusEffect(
     useCallback(() => {
       const { result: r, imageUri: uri } = getAnalysisResult();
       if (!r) {
-        // No result available — go back to home
         router.replace('/');
         return;
       }
@@ -99,7 +199,7 @@ export default function ResultsScreen() {
     );
   }
 
-  const isSpinifex = result.isSpinifex;
+  const [topCandidate, ...otherCandidates] = result.candidates;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -116,85 +216,41 @@ export default function ResultsScreen() {
           <View style={styles.homeButton} />
         </View>
 
-        {/* Hero — species name + spinifex verdict */}
-        <View
-          style={[
-            styles.heroCard,
-            isSpinifex ? styles.heroCardSpinifex : styles.heroCardNonSpinifex,
-          ]}
-        >
-          {isSpinifex ? (
-            <>
-              <View style={styles.verdictRow}>
-                <Text style={styles.verdictIcon}>🌿</Text>
-                <Text style={[styles.verdictLabel, styles.verdictLabelSpinifex]}>
-                  Spinifex Identified
-                </Text>
-              </View>
-              <Text style={styles.speciesName}>{result.speciesName}</Text>
-            </>
-          ) : (
-            <>
-              <View style={styles.verdictRow}>
-                <Text style={styles.verdictIcon}>❌</Text>
-                <Text style={[styles.verdictLabel, styles.verdictLabelNonSpinifex]}>
-                  Not Spinifex
-                </Text>
-              </View>
-              <Text style={styles.speciesName}>{result.speciesName}</Text>
-              {result.alternativeSuggestion && (
-                <View style={styles.alternativeBox}>
-                  <Text style={styles.alternativeLabel}>What it might be:</Text>
-                  <Text style={styles.alternativeText}>{result.alternativeSuggestion}</Text>
-                </View>
-              )}
-            </>
-          )}
-
-          <View style={styles.confidenceRow}>
-            <ConfidenceBadge confidence={result.confidence} />
-          </View>
-        </View>
+        {/* Top match hero card */}
+        <TopMatchCard candidate={topCandidate} isSpinifex={result.isSpinifex} />
 
         {/* Image thumbnail */}
         {imageUri && (
           <View style={styles.imageWrapper}>
-            <Image
-              source={{ uri: imageUri }}
-              style={styles.thumbnail}
-              resizeMode="cover"
-            />
+            <Image source={{ uri: imageUri }} style={styles.thumbnail} resizeMode="cover" />
             <View style={styles.imageLabelBadge}>
               <Text style={styles.imageLabelText}>Analysed Photo</Text>
             </View>
           </View>
         )}
 
-        {/* Identifying features */}
-        {result.identifyingFeatures.length > 0 && (
-          <SectionCard icon="🔬" title="Key Identifying Features">
-            {result.identifyingFeatures.map((feature, i) => (
-              <View key={i} style={styles.featureRow}>
-                <View style={styles.featureBullet} />
-                <Text style={styles.featureText}>{feature}</Text>
-              </View>
+        {/* Alternative candidates */}
+        {otherCandidates.length > 0 && (
+          <SectionCard icon="🔄" title="Other Possible Species">
+            {otherCandidates.map((candidate, i) => (
+              <AlternativeCard key={i} candidate={candidate} rank={i + 2} />
             ))}
           </SectionCard>
         )}
 
         {/* Habitat */}
-        {result.habitat && (
+        {result.habitat ? (
           <SectionCard icon="🗺️" title="Habitat & Distribution">
             <Text style={styles.bodyText}>{result.habitat}</Text>
           </SectionCard>
-        )}
+        ) : null}
 
         {/* Land management */}
-        {result.landManagementNotes && (
+        {result.landManagementNotes ? (
           <SectionCard icon="🌾" title="Land Management Notes">
             <Text style={styles.bodyText}>{result.landManagementNotes}</Text>
           </SectionCard>
-        )}
+        ) : null}
 
         {/* Actions */}
         <View style={styles.actionsGroup}>
@@ -222,9 +278,13 @@ export default function ResultsScreen() {
           </Pressable>
         </View>
 
-        {/* AI disclaimer */}
+        {/* Disclaimers */}
         <View style={styles.disclaimerBox}>
-          <Text style={styles.disclaimerText}>
+          <Text style={styles.disclaimerBotanist}>
+            Species identification should be confirmed by a botanist for research or land management purposes.
+          </Text>
+          <View style={styles.disclaimerDivider} />
+          <Text style={styles.disclaimerAI}>
             ⚠️  AI identifications are for guidance only. Always verify with local experts,
             especially for land management, stock, or safety decisions.
           </Text>
@@ -277,12 +337,12 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
 
-  // Hero card
-  heroCard: {
+  // Top match card
+  topMatchCard: {
     borderRadius: 16,
     padding: 20,
     borderWidth: 2,
-    gap: 10,
+    gap: 12,
   },
   heroCardSpinifex: {
     backgroundColor: Colors.accentPale,
@@ -305,6 +365,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1,
+    flex: 1,
   },
   verdictLabelSpinifex: {
     color: Colors.accent,
@@ -312,36 +373,33 @@ const styles = StyleSheet.create({
   verdictLabelNonSpinifex: {
     color: Colors.error,
   },
-  speciesName: {
+  rankBadge: {
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+  },
+  rankBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.white,
+    letterSpacing: 0.5,
+  },
+  speciesScientific: {
     fontSize: 24,
     fontWeight: '800',
     color: Colors.textPrimary,
     lineHeight: 30,
+    fontStyle: 'italic',
   },
-  alternativeBox: {
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginTop: 4,
-  },
-  alternativeLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 4,
-  },
-  alternativeText: {
-    fontSize: 14,
+  speciesCommon: {
+    fontSize: 16,
+    fontWeight: '500',
     color: Colors.textSecondary,
-    lineHeight: 20,
+    marginTop: -6,
   },
   confidenceRow: {
     flexDirection: 'row',
-    marginTop: 4,
   },
   badge: {
     flexDirection: 'row',
@@ -360,6 +418,78 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.white,
     fontWeight: '600',
+  },
+  featuresBlock: {
+    gap: 8,
+    marginTop: 2,
+  },
+  featuresLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  featureBullet: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: Colors.accent,
+    marginTop: 6,
+    flexShrink: 0,
+  },
+  featureBulletAlt: {
+    backgroundColor: Colors.primary,
+  },
+  featureText: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 21,
+  },
+  locationContextBlock: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 10,
+    padding: 10,
+  },
+  locationContextIcon: {
+    fontSize: 14,
+    marginTop: 1,
+  },
+  locationContextText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 19,
+  },
+  photoSuggestionBlock: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: Colors.warningLight,
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  photoSuggestionIcon: {
+    fontSize: 14,
+    marginTop: 1,
+  },
+  photoSuggestionText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 19,
+    fontStyle: 'italic',
   },
 
   // Image
@@ -416,29 +546,57 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textPrimary,
   },
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  featureBullet: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: Colors.primary,
-    marginTop: 6,
-    flexShrink: 0,
-  },
-  featureText: {
-    flex: 1,
-    fontSize: 14,
-    color: Colors.textSecondary,
-    lineHeight: 21,
-  },
   bodyText: {
     fontSize: 14,
     color: Colors.textSecondary,
     lineHeight: 22,
+  },
+
+  // Alternative candidate cards
+  alternativeCard: {
+    backgroundColor: Colors.inputBackground,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 10,
+  },
+  altCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  altRankBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+    flexShrink: 0,
+  },
+  altRankText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  altNameGroup: {
+    flex: 1,
+    gap: 2,
+  },
+  altScientific: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    fontStyle: 'italic',
+  },
+  altCommon: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  altFeaturesBlock: {
+    gap: 6,
   },
 
   // Actions
@@ -498,8 +656,19 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: Colors.border,
+    gap: 10,
   },
-  disclaimerText: {
+  disclaimerBotanist: {
+    fontSize: 13,
+    color: Colors.textPrimary,
+    lineHeight: 19,
+    fontWeight: '500',
+  },
+  disclaimerDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  disclaimerAI: {
     fontSize: 12,
     color: Colors.textSecondary,
     lineHeight: 18,

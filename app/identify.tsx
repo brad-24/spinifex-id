@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { Colors } from '../constants/colors';
@@ -18,9 +19,21 @@ import { setAnalysisResult } from '../store/resultStore';
 
 type PickerSource = 'camera' | 'library';
 
+const REGIONS = [
+  'Pilbara',
+  'Kimberley',
+  'Goldfields',
+  'Central Australia',
+  'Simpson Desert',
+  'Gulf Country',
+  'Cape York',
+  'Other',
+] as const;
+
 export default function IdentifyScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [location, setLocation] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function pickImage(source: PickerSource) {
@@ -79,7 +92,7 @@ export default function IdentifyScreen() {
 
     setLoading(true);
     try {
-      const result = await identifyPlant(imageBase64, imageUri);
+      const result = await identifyPlant(imageBase64, imageUri, location.trim() || undefined);
       setAnalysisResult(result, imageUri);
       router.push('/results');
     } catch (error) {
@@ -96,6 +109,10 @@ export default function IdentifyScreen() {
     setImageBase64(null);
   }
 
+  function toggleRegion(region: string) {
+    setLocation(prev => (prev === region ? '' : region));
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -104,7 +121,7 @@ export default function IdentifyScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {/* Picker buttons */}
-        {!imageUri && (
+        {!imageUri && !loading && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Choose a Photo</Text>
             <Text style={styles.sectionDescription}>
@@ -156,24 +173,72 @@ export default function IdentifyScreen() {
             <View style={styles.imageContainer}>
               <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="cover" />
             </View>
-
             <Pressable
               style={({ pressed }) => [styles.changePhotoButton, pressed && styles.changePhotoButtonPressed]}
               onPress={clearImage}
             >
               <Text style={styles.changePhotoText}>Change Photo</Text>
             </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [styles.analyseButton, pressed && styles.analyseButtonPressed]}
-              onPress={analyseImage}
-              accessibilityRole="button"
-              accessibilityLabel="Analyse plant"
-            >
-              <Text style={styles.analyseButtonText}>Analyse Plant</Text>
-              <Text style={styles.analyseButtonIcon}>🔍</Text>
-            </Pressable>
           </View>
+        )}
+
+        {/* Location input — always shown when not loading */}
+        {!loading && (
+          <View style={styles.locationSection}>
+            <View style={styles.locationHeader}>
+              <Text style={styles.sectionTitle}>Location</Text>
+              <Text style={styles.optionalTag}>Optional</Text>
+            </View>
+            <Text style={styles.locationHelper}>
+              Adding your location improves species accuracy across Australia's 60+ spinifex species
+            </Text>
+            <TextInput
+              style={styles.locationInput}
+              placeholder='e.g. "Pilbara WA", "Simpson Desert"'
+              placeholderTextColor={Colors.textMuted}
+              value={location}
+              onChangeText={setLocation}
+              returnKeyType="done"
+              accessibilityLabel="Enter your location"
+            />
+            <Text style={styles.quickSelectLabel}>Quick select a region:</Text>
+            <View style={styles.chipsGrid}>
+              {REGIONS.map(region => {
+                const selected = location === region;
+                return (
+                  <Pressable
+                    key={region}
+                    style={({ pressed }) => [
+                      styles.chip,
+                      selected && styles.chipSelected,
+                      pressed && styles.chipPressed,
+                    ]}
+                    onPress={() => toggleRegion(region)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Select region: ${region}`}
+                    accessibilityState={{ selected }}
+                  >
+                    <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                      {region}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Analyse button */}
+        {imageUri && !loading && (
+          <Pressable
+            style={({ pressed }) => [styles.analyseButton, pressed && styles.analyseButtonPressed]}
+            onPress={analyseImage}
+            accessibilityRole="button"
+            accessibilityLabel="Analyse plant"
+          >
+            <Text style={styles.analyseButtonText}>Analyse Plant</Text>
+            <Text style={styles.analyseButtonIcon}>🔍</Text>
+          </Pressable>
         )}
 
         {/* Loading state */}
@@ -186,8 +251,8 @@ export default function IdentifyScreen() {
             </Text>
             <View style={styles.loadingSteps}>
               <Text style={styles.loadingStep}>🔍  Examining visual features</Text>
-              <Text style={styles.loadingStep}>🌿  Checking against spinifex species</Text>
-              <Text style={styles.loadingStep}>📍  Determining habitat information</Text>
+              <Text style={styles.loadingStep}>🌿  Matching against spinifex species</Text>
+              <Text style={styles.loadingStep}>📍  Applying location context</Text>
             </View>
           </View>
         )}
@@ -299,6 +364,83 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
+
+  // Location section
+  locationSection: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 12,
+  },
+  locationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  optionalTag: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textMuted,
+    backgroundColor: Colors.inputBackground,
+    borderRadius: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    overflow: 'hidden',
+  },
+  locationHelper: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 19,
+    marginTop: -4,
+  },
+  locationInput: {
+    backgroundColor: Colors.inputBackground,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: Colors.textPrimary,
+  },
+  quickSelectLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  chipsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    borderRadius: 20,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.inputBackground,
+  },
+  chipSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primaryDark,
+  },
+  chipPressed: {
+    opacity: 0.8,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  chipTextSelected: {
+    color: Colors.white,
+  },
+
   analyseButton: {
     backgroundColor: Colors.accent,
     borderRadius: 14,

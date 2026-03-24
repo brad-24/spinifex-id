@@ -3,35 +3,51 @@ import { PlantAnalysisResult } from '../types/plant';
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-20250514';
 
-const SYSTEM_PROMPT = `You are an expert Australian botanist specialising in spinifex grasses (Triodia and Plectrachne species) and native Australian flora. You have deep knowledge of Australian ecosystems, arid and semi-arid environments, and land management practices.
+const SYSTEM_PROMPT = `You are an expert Australian botanist specialising in spinifex grasses (Triodia and Spinifex species) and native Australian flora. Australia has over 60 species of Triodia and Spinifex — the spiny, hummock-forming grasses of arid and semi-arid Australia. You have deep knowledge of species distributions across regions including the Pilbara, Kimberley, Goldfields, Central Australia, Simpson Desert, Gulf Country, and Cape York.
 
 When analysing a plant image, you must:
-1. Determine if it is spinifex (any Triodia or Plectrachne species — the spiny, hummock-forming grasses of arid and semi-arid Australia)
-2. Identify the most likely species or type if possible
-3. List its distinctive visual features
-4. Describe its Australian habitat and distribution
-5. Provide relevant land management context (fire ecology, pastoral impacts, revegetation value, etc.)
+1. Determine if it is spinifex (Triodia or Spinifex genus — the spiny, hummock-forming grasses)
+2. Return a ranked list of up to 3 most likely species, using any provided location to narrow down candidates from the 60+ species found across Australia
+3. For each candidate, describe key identifying features visible in the photo
+4. Explain how the provided location supports or limits each identification
+5. Suggest what closer photo (leaf tip, resin, seed head, etc.) would help confirm the identification
+6. Provide habitat, distribution, and land management context
 
 Always return ONLY a valid JSON object with no surrounding text, markdown, or explanation.`;
 
-const USER_PROMPT = `Analyse this plant image and return a JSON object with exactly this structure:
+function buildUserPrompt(location?: string): string {
+  const locationLine = location
+    ? `The photo was taken in: ${location}. Use this location to narrow down likely species from the 60+ Triodia and Spinifex species found across Australia.\n\n`
+    : 'No location was provided — base your identification on visual features alone, and note the typical regions where each candidate species is found.\n\n';
+
+  return `${locationLine}Analyse this plant image and return a JSON object with exactly this structure:
 
 {
   "isSpinifex": boolean,
-  "speciesName": "Most likely species name (e.g., Triodia pungens, Triodia basedowii) or best match if not spinifex",
-  "confidence": "high" | "medium" | "low",
-  "identifyingFeatures": ["feature 1", "feature 2", "feature 3"],
-  "habitat": "Description of typical Australian habitat and geographic distribution",
-  "landManagementNotes": "Notes on fire ecology, pastoral value, revegetation, or land management significance in Australia",
-  "alternativeSuggestion": "If NOT spinifex: brief description of what this plant might be and why. Set to null if it IS spinifex."
+  "candidates": [
+    {
+      "scientificName": "e.g. Triodia pungens",
+      "commonName": "e.g. Soft Spinifex",
+      "confidence": "high" | "medium" | "low",
+      "identifyingFeatures": ["feature visible in this photo", "another visible feature"],
+      "locationContext": "How the location supports or limits this identification, or typical distribution if no location given",
+      "furtherPhotoSuggestion": "What closer photo would help confirm (e.g. leaf tip, resin, seed head), or null if already confident"
+    }
+  ],
+  "habitat": "General habitat and distribution notes for the most likely species",
+  "landManagementNotes": "Notes on fire ecology, pastoral value, revegetation, or land management significance in Australia"
 }
 
-Confidence guide:
-- "high": Clear image, distinctive features clearly visible, confident identification
-- "medium": Reasonable identification but some uncertainty due to angle, lighting, or growth stage
-- "low": Poor image quality, unusual angle, ambiguous features, or plant not clearly visible
+Rules:
+- Return up to 3 candidates ranked by likelihood (most likely first)
+- If the plant is not spinifex, still list the most likely non-spinifex species as candidates
+- Confidence guide:
+  - "high": Clear image, distinctive features clearly visible, confident identification
+  - "medium": Reasonable identification but some uncertainty due to angle, lighting, or growth stage
+  - "low": Poor image quality, unusual angle, ambiguous features, or plant not clearly visible
 
 Return ONLY the JSON object. No markdown fences, no explanation.`;
+}
 
 function getMediaType(uri: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' {
   const lower = uri.toLowerCase();
@@ -44,6 +60,7 @@ function getMediaType(uri: string): 'image/jpeg' | 'image/png' | 'image/gif' | '
 export async function identifyPlant(
   base64Image: string,
   imageUri: string,
+  location?: string,
 ): Promise<PlantAnalysisResult> {
   const apiKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
 
@@ -54,6 +71,7 @@ export async function identifyPlant(
   }
 
   const mediaType = getMediaType(imageUri);
+  const userPrompt = buildUserPrompt(location);
 
   const response = await fetch(ANTHROPIC_API_URL, {
     method: 'POST',
@@ -64,7 +82,7 @@ export async function identifyPlant(
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 1500,
       system: SYSTEM_PROMPT,
       messages: [
         {
@@ -80,7 +98,7 @@ export async function identifyPlant(
             },
             {
               type: 'text',
-              text: USER_PROMPT,
+              text: userPrompt,
             },
           ],
         },
@@ -110,8 +128,7 @@ export async function identifyPlant(
 
   try {
     const result = JSON.parse(jsonMatch[0]) as PlantAnalysisResult;
-    // Ensure required fields exist
-    if (typeof result.isSpinifex !== 'boolean' || !result.speciesName) {
+    if (typeof result.isSpinifex !== 'boolean' || !Array.isArray(result.candidates) || result.candidates.length === 0) {
       throw new Error('Incomplete response received. Please try again.');
     }
     return result;

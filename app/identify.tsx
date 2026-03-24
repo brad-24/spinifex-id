@@ -35,6 +35,7 @@ export default function IdentifyScreen() {
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [location, setLocation] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function pickImage(source: PickerSource) {
     try {
@@ -86,19 +87,21 @@ export default function IdentifyScreen() {
 
   async function analyseImage() {
     if (!imageUri || !imageBase64) {
-      Alert.alert('No Image', 'Please select or take a photo first.');
+      setError('Please select or take a photo first.');
       return;
     }
 
+    setError(null);
     setLoading(true);
     try {
       const result = await identifyPlant(imageBase64, imageUri, location.trim() || undefined);
       setAnalysisResult(result, imageUri);
       router.push('/results');
-    } catch (error) {
+    } catch (err) {
       const message =
-        error instanceof Error ? error.message : 'An unexpected error occurred.';
-      Alert.alert('Identification Failed', message, [{ text: 'OK' }]);
+        err instanceof Error ? err.message : 'An unexpected error occurred.';
+      console.error('[SpinifexID] analyseImage error:', message);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -225,6 +228,17 @@ export default function IdentifyScreen() {
                 );
               })}
             </View>
+          </View>
+        )}
+
+        {/* Error box */}
+        {error && !loading && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorTitle}>Identification Failed</Text>
+            <Text style={styles.errorMessage}>{error}</Text>
+            <Text style={styles.errorHint}>
+              Check your API key is set correctly and you have an internet connection. See console for details.
+            </Text>
           </View>
         )}
 
@@ -520,5 +534,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     lineHeight: 20,
+  },
+  errorBox: {
+    backgroundColor: Colors.errorLight,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.error,
+    gap: 6,
+  },
+  errorTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.error,
+  },
+  errorMessage: {
+    fontSize: 13,
+    color: Colors.textPrimary,
+    lineHeight: 19,
+  },
+  errorHint: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    lineHeight: 17,
+    marginTop: 2,
   },
 });
